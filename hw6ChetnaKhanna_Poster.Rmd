@@ -1,0 +1,182 @@
+---
+title: "hw6ChetnaKhanna"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(maps)
+library(RColorBrewer)
+library(usmap)
+```
+
+```{r}
+#loading the species csv
+df_species <- read.csv('species.csv')
+head(df_species)
+```
+
+```{r}
+#loading the parks csv
+df_parks <- read.csv('parks.csv')
+head(df_parks)
+```
+
+```{r}
+#left joining of the two tables
+df <- merge(x = df_parks, y = df_species, by = "Park.Name", all.x = TRUE)
+head(df)
+#summary(df)
+```
+
+We can see that 114530 species have null values in the Conservation.Status. By looking at this number, we can say that these species must be of least concern. So let us replace null by Least Concern in Conservation.Status column.
+
+```{r}
+#let us replace NA in Conservation.Status to 'Least Concern'
+con_status <- function(x) {
+  if (x == '') {return ('Least Concern')}
+  else {return (as.character(x))}
+}
+
+#using sapply function to replace empty status with Safe
+df$Conservation.Status <- sapply(df$Conservation.Status, con_status)
+
+#looking at the dataframe once again
+head(df)
+```
+
+Let us have a look at the different Categories of species.
+```{r}
+#let us see the count of different Categories of species
+table(df$Category)
+```
+
+We can see that the data frame have the following species of plants:
+1. Algae
+2. Fungi
+3. Nonvascular Plant
+4. Vascular Plant
+
+We can see that the data frame have the following species of animals:
+1. Amphibian
+2. Bird
+3. Crab/Lobster/Shrimp
+4. Fish
+5. Insect
+6. Invertebrate
+7. Mammal
+8. Reptile
+9. Slug/Snail 
+10. Spider/Scorpion
+
+Let us add a new column 'Main.Category' to our data frame with two values - Animal and Plant.
+
+```{r}
+#adding a new column Main.Category with value Animal or Plant
+df$Main.Category <- ifelse (df$Category %in% c('Algae','Fungi','Nonvascular Plant', 'Vascular Plant'), 'Plant', 'Animal')
+#changing the character type to factor type to get the levels
+df$Main.Category <- as.factor(df$Main.Category)
+df$Conservation.Status <- as.factor(df$Conservation.Status)
+summary(df)
+#head(df)
+```
+
+We can see that Park.Name and Park.Code variable has many repeated enteries as one park can have many species. So, let us group Park.Code and get the count of each park.
+
+```{r}
+#let us see the different Parks 
+table(df$Park.Code)
+```
+
+```{r}
+df <- df %>% group_by(Park.Code) %>% mutate(Total = n())
+head(df)
+summary(df)
+```
+
+Let us draw the map depicting the species count in US.
+
+```{r}
+df %>% ggplot(aes(x = Longitude, y = Latitude)) +
+  borders("state") +
+  geom_point(aes(size=Total, color=Total)) +
+  coord_map() + 
+  labs(title="US National Parks", subtitle="Species Biodiversity") +
+  scale_colour_distiller(palette="Oranges") +
+  labs(size="Species Count", colour="Species Count")
+```
+
+Due to Alaska and Hawaii, the map dots look clutered. Let us try to use some other way to depict Alaska and Hawaii and make the above graph visually appealing. 
+```{r}
+df_cord <- data.frame(df$Longitude, df$Latitude)
+df_trans <- usmap_transform(df_cord)
+df_map <- merge(df, df_trans, by.x="Latitude", by.y="df.Latitude")
+
+plot_usmap(fill="cornsilk2") + 
+  geom_point(data=df_map, aes(x=df.Longitude.1, y=df.Latitude.1, size=Total, color=Total)) +
+  labs(title="US National Parks", subtitle="Species Count") +
+  scale_colour_distiller(palette="Oranges") +
+  labs(size="Species Count", colour="Species Count") + 
+  theme(legend.position="right", plot.title=element_text(face="bold", size=16),
+        plot.subtitle=element_text(face="bold", size=13), 
+        plot.background=element_rect(fill = "transparent", colour = NA))
+```
+
+```{r}
+ggsave("graph_map.png", bg = "transparent")
+```
+
+Let us find the count of national parks in different states of US.
+
+```{r}
+graph_park <- df_parks %>% group_by(State) %>% summarise(n=n()) %>%
+  ggplot() +
+  geom_point(aes(x=State, y=n), color="dark green", size=5) + 
+  geom_segment(aes(x=State, xend=State, y=0, yend=n), color="brown", size=1) +
+  labs(x="State",y="National Park Count", title="National Parks in US", subtitle="State-wise Count") + 
+  theme(axis.text.x=element_text(face="bold", angle = 50, hjust = 1, size=14), 
+        axis.text.y=element_text(face="bold", size=14), 
+        axis.title.x=element_text(face="bold", size=12), 
+        axis.title.y=element_text(face="bold", size=12), 
+        plot.title=element_text(face="bold", size=16), 
+        plot.subtitle=element_text(face="bold", size=13), 
+        panel.grid.major=element_blank(), 
+        panel.grid.minor=element_blank(), 
+        panel.background=element_blank(), 
+        axis.line=element_line(colour = "black"),
+        plot.background=element_rect(fill = "transparent", colour = NA))
+graph_park
+```
+
+
+```{r}
+ggsave("graph_park.png", bg = "transparent")
+```
+
+```{r}
+table(df$Conservation.Status)
+```
+
+Let us have a look at the conservation status of species.
+
+```{r}
+tb_con <- table(df$Main.Category, df$Conservation.Status)
+tb_con
+```
+
+We will only list the categories which are under concern in our table. Following are categories which comes under concern:
+
+1. Endangered 
+2. Proposed Endangered
+3. Proposed Threatened
+4. Species of Concern
+5. Threatened
+6. Under Review
+
+
